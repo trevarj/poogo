@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+## 💩 Hugo's stinky step-child who won't stop putting his mark down!
+# shellcheck disable=SC2164
+
+shopt -s nullglob
+
+pushd() { command pushd "$@" >/dev/null || exit 1; }
+popd() { command popd >/dev/null || exit 1; }
+
+err_msg() {
+	echo "$1" && exit 1
+}
+
+bootstrap() {
+	if [ -d "$TARGET" ]; then
+		err_msg "Target bootstrap directory ($TARGET) already exists"
+	fi
+	echo "Bootstrapping into $TARGET"
+	mkdir -p "$TARGET" || err_msg "Could not create $TARGET directory."
+	pushd "$TARGET"
+	mkdir posts/ && mkdir about/
+	printf "# About me\n\nThis is a nice thing about me." >about/about.md
+	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
+	printf "This is my blog header\n\n" >header.md
+	printf "This is my blog footer" >footer.md
+	echo "Downloading Simple CSS"
+	mkdir static/
+	wget --quiet -O static/simple.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
+}
+
+md_to_html() {
+	filename=${1%.md*}
+	[ "$1" -ot "$filename.html" ] && return
+	echo "Converting $(realpath "$filename.md") to HTML..."
+
+	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
+		curl -s --data @- https://api.github.com/markdown >"$filename.html"
+
+	printf "<!DOCTYPE html>
+          <link rel=\"stylesheet\" href=\"%s\">
+          <html>
+          <body>
+          <header>%s</header>
+            %s
+          <footer>%s</footer>
+          </html>" \
+		"$CSS" \
+		"$(<"${HEADER:-/dev/null}")" \
+		"$(<"$filename.html")" \
+		"$(<"${FOOTER:-/dev/null}")" >"$filename.html"
+}
+
+generate() {
+	[ ! -d posts ] && err_msg "Posts directory not found."
+
+	md_to_html header.md
+	md_to_html footer.md
+	HEADER=$(realpath "./header.md")
+	FOOTER=$(realpath "./footer.md")
+	CSS=$(realpath ./static/simple.css)
+	pushd posts/
+	posts=()
+	all_posts=()
+	for md in *.md; do
+		filename=${md%.md*}
+		title=$(sed -rn 's/# (.*)/\1/p' "$md")
+		timestamp=$(date -r "$md" "+%e %b %y")
+		link="- $timestamp : \[$title\](./posts/$filename.html)"
+		[ "${#posts[@]}" -lt 6 ] && posts+=("$link")
+		all_posts+=("$link")
+		md_to_html "$md"
+	done
+	printf "%s" "${all_posts[@]}" >index.md
+	md_to_html index.md
+	rm index.md
+	# TODO:
+	# Add a little  if it was edited (html file already existed)
+	popd
+
+	sed "s;%POSTS%;### [Posts](./posts/index.html)\n${posts[*]};" index.md >index.md.tmp
+	md_to_html index.md.tmp
+	rm index.md.tmp
+}
+
+while getopts "bp:" opt; do
+	case "${opt}" in
+	b)
+		BOOTSTRAP=1
+		;;
+	p)
+		TARGET=${OPTARG}
+		;;
+	*)
+		echo "Usage..."
+		;;
+	esac
+done
+
+if [ -n "$BOOTSTRAP" ]; then
+	bootstrap
+	exit 0
+fi
+
+if [ -n "$TARGET" ]; then
+	pushd "$TARGET" || err_msg "Specified target path not found. Create it with -p [my_blog] -b."
+	generate
+	popd
+else
+	generate
+fi
