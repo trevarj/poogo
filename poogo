@@ -40,14 +40,14 @@ md_to_html() {
           <link rel=\"stylesheet\" href=\"%s\">
           <html>
           <body>
-          <header>%s</header>
+          %s
             %s
-          <footer>%s</footer>
+          %s
           </html>" \
 		"$CSS" \
-		"$(<"${HEADER:-/dev/null}")" \
+		"<header>$(<"${HEADER:-/dev/null}")</header>" \
 		"$(<"$filename.html")" \
-		"$(<"${FOOTER:-/dev/null}")" >"$filename.html"
+		"<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
 }
 
 generate() {
@@ -55,9 +55,9 @@ generate() {
 
 	md_to_html header.md
 	md_to_html footer.md
-	HEADER=$(realpath "./header.md")
-	FOOTER=$(realpath "./footer.md")
-	CSS=$(realpath ./static/simple.css)
+	HEADER=$(realpath "./header.html")
+	FOOTER=$(realpath "./footer.html")
+	CSS="/static/simple.css"
 	pushd posts/
 	posts=()
 	all_posts=()
@@ -65,7 +65,7 @@ generate() {
 		filename=${md%.md*}
 		title=$(sed -rn 's/# (.*)/\1/p' "$md")
 		timestamp=$(date -r "$md" "+%e %b %y")
-		link="- $timestamp : \[$title\](./posts/$filename.html)"
+		link="- $timestamp - [$title](/posts/$filename.html)"
 		[ "${#posts[@]}" -lt 6 ] && posts+=("$link")
 		all_posts+=("$link")
 		md_to_html "$md"
@@ -77,7 +77,7 @@ generate() {
 	# Add a little  if it was edited (html file already existed)
 	popd
 
-	sed "s;%POSTS%;### [Posts](./posts/index.html)\n${posts[*]};" index.md >index.md.tmp
+	sed "s;%POSTS%;### [Posts](/posts/index.html)\n${posts[*]};" index.md >index.md.tmp
 	md_to_html index.md.tmp
 	rm index.md.tmp
 }
