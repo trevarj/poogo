@@ -30,7 +30,9 @@ bootstrap() {
 
 md_to_html() {
 	filename=${1%.md*}
-	[ "$1" -ot "$filename.html" ] && return
+	[[ "$1" -ot "$filename.html" &&
+		"$filename.html" -nt "$HEADER" &&
+		"$filename.html" -nt "$FOOTER" ]] && return
 	echo "Converting $(realpath "$filename.md") to HTML..."
 
 	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
