@@ -17,7 +17,7 @@ bootstrap() {
 	mkdir -p "$TARGET"
 	pushd "$TARGET"
 	mkdir posts/ && mkdir about/
-	printf "# About me\n\nThis is a nice thing about me." >about/about.md
+	printf "# About me\n\nThis is a nice thing about me." >about/index.md
 	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
 	printf "This is my blog header\n\n" >header.md
 	printf "This is my blog footer" >footer.md
@@ -31,11 +31,11 @@ bootstrap() {
 # $2 - force generate if 1
 md_to_html() {
 	local filename=${1%.md*}
-	[[ "$1" -ot "$filename.html" && $2 -ne 1 ]] && return 1
+	[[ ! -f $1 || $1 -ot "$filename.html" && $2 -ne 1 ]] && return 1
 	echo "Converting $(realpath "$filename.md") to HTML..."
-	# TODO: handle error here and don't write if curl fails
 	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
-		curl -s --data @- https://api.github.com/markdown >"$filename.html"
+		curl -s --data @- https://api.github.com/markdown >"$filename.html" ||
+		err_msg "Couldn't generate HTML using GH API."
 }
 
 # Convert md file to full html page
@@ -106,6 +106,8 @@ generate() {
 		md_to_html_page index.md.tmp
 		rm index.md.tmp
 	fi
+
+	md_to_html_page about/index.md
 }
 
 usage() {
