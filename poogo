@@ -90,6 +90,7 @@ generate_posts() {
 }
 
 generate() {
+	pushd "$TARGET"
 	[ ! -d posts ] && err_msg "Posts directory not found."
 
 	# Prepare header/footer and CSS
@@ -108,7 +109,14 @@ generate() {
 	fi
 }
 
-while getopts "bgn:p:" opt; do
+usage() {
+	echo "poogo - a static-site generator for blogs."
+	echo "Usage:  poogo -b [-p PATH] - bootstrap a skeleton blog"
+	echo "        poogo -g [-p PATH] - generate HTML from Markdown files"
+	echo "        poogo -n [-p PATH] - create new post"
+}
+
+while getopts "bghn:p:" opt; do
 	case "${opt}" in
 	b)
 		BOOTSTRAP=1
@@ -122,8 +130,8 @@ while getopts "bgn:p:" opt; do
 	p)
 		TARGET=${OPTARG}
 		;;
-	*)
-		echo "Usage..."
+	h | *)
+		usage && exit 1
 		;;
 	esac
 done
@@ -143,7 +151,5 @@ if [ -n "$NEW" ]; then
 fi
 
 if [ -n "$GENERATE" ]; then
-	pushd "$TARGET"
 	generate
-	popd
 fi
