@@ -25,7 +25,7 @@ bootstrap() {
 	printf "This is my blog footer" >footer.md
 	echo "Downloading Simple CSS"
 	mkdir static/
-	wget --quiet -O static/simple.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
+	wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
 }
 
 # Convert md file to html without extra html tags
@@ -98,7 +98,7 @@ generate() {
 	md_to_html footer.md
 	HEADER=$(realpath "./header.html")
 	FOOTER=$(realpath "./footer.html")
-	CSS="/static/simple.css"
+	CSS="/static/style.css"
 
 	if ! generate_posts; then
 		echo "Regenerating index.html..."
