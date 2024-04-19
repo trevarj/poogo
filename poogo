@@ -68,7 +68,7 @@ generate_posts() {
 	pushd posts/
 	posts=()
 	all_posts=()
-	regen=0
+	regen_index=0
 	for md in *.md; do
 		filename=${md%.md*}
 		title=$(sed -rn 's/# (.*)/\1/p' "$md")
@@ -77,16 +77,16 @@ generate_posts() {
 		link="**$timestamp**  [$title](/posts/$filename.html)<br>"
 		[ "${#posts[@]}" -lt 6 ] && posts+=("$link")
 		all_posts+=("$link")
-		md_to_html_page "$md" && regen=1
+		md_to_html_page "$md" && regen_index=1
 	done
-	if [[ $regen -eq 1 ]]; then
+	if [[ $regen_index -eq 1 ]]; then
 		echo "Regenerating posts/index.html..."
 		printf "%s" "${all_posts[@]}" >index.md
 		md_to_html_page index.md
 		rm index.md
 	fi
 	popd
-	return $regen
+	return $regen_index
 }
 
 generate() {
