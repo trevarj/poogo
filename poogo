@@ -28,16 +28,28 @@ bootstrap() {
 	wget --quiet -O static/simple.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
 }
 
+# Convert md file to html without extra html tags
+# $1 - markdown file
+# $2 - force generate if 1
 md_to_html() {
 	filename=${1%.md*}
-	[[ "$1" -ot "$filename.html" &&
-		"$filename.html" -nt "$HEADER" &&
-		"$filename.html" -nt "$FOOTER" ]] && return
+	[[ "$1" -ot "$filename.html" && $2 -ne 1 ]] && return 1
 	echo "Converting $(realpath "$filename.md") to HTML..."
-
+	# TODO: handle error here and don't write if curl fails
 	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
 		curl -s --data @- https://api.github.com/markdown >"$filename.html"
+}
 
+# Convert md file to full html page
+md_to_html_page() {
+	filename=${1%.md*}
+	unset force
+	[[ "$filename.html" -ot "$HEADER" ||
+		"$filename.html" -ot "$FOOTER" ]] && force=1
+
+	md_to_html "$1" $force || return 1
+
+	echo "...and creating HTML page $(realpath "$filename.html")..."
 	printf "<!DOCTYPE html>
           <link rel=\"stylesheet\" href=\"%s\">
           <html>
@@ -52,42 +64,60 @@ md_to_html() {
 		"<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
 }
 
+generate_posts() {
+	pushd posts/
+	posts=()
+	all_posts=()
+	regen=0
+	for md in *.md; do
+		filename=${md%.md*}
+		title=$(sed -rn 's/# (.*)/\1/p' "$md")
+		timestamp=$(date -r "$md" "+%e %b %Y")
+		# TODO: Add a little  if it was edited (html file already existed)
+		link="**$timestamp**  [$title](/posts/$filename.html)<br>"
+		[ "${#posts[@]}" -lt 6 ] && posts+=("$link")
+		all_posts+=("$link")
+		md_to_html_page "$md" && regen=1
+	done
+	if [[ $regen -eq 1 ]]; then
+		echo "Regenerating posts/index.html..."
+		printf "%s" "${all_posts[@]}" >index.md
+		md_to_html_page index.md
+		rm index.md
+	fi
+	popd
+	return $regen
+}
+
 generate() {
 	[ ! -d posts ] && err_msg "Posts directory not found."
 
+	# Prepare header/footer and CSS
 	md_to_html header.md
 	md_to_html footer.md
 	HEADER=$(realpath "./header.html")
 	FOOTER=$(realpath "./footer.html")
 	CSS="/static/simple.css"
-	pushd posts/
-	posts=()
-	all_posts=()
-	for md in *.md; do
-		filename=${md%.md*}
-		title=$(sed -rn 's/# (.*)/\1/p' "$md")
-		timestamp=$(date -r "$md" "+%e %b %y")
-		link="- $timestamp - [$title](/posts/$filename.html)"
-		[ "${#posts[@]}" -lt 6 ] && posts+=("$link")
-		all_posts+=("$link")
-		md_to_html "$md"
-	done
-	printf "%s" "${all_posts[@]}" >index.md
-	md_to_html index.md
-	rm index.md
-	# TODO:
-	# Add a little  if it was edited (html file already existed)
-	popd
 
-	sed "s;%POSTS%;### [Posts](/posts/index.html)\n${posts[*]};" index.md >index.md.tmp
-	md_to_html index.md.tmp
-	rm index.md.tmp
+	if ! generate_posts; then
+		echo "Regenerating index.html..."
+		# Add posts section to root index.html
+		sed "s;%POSTS%;### [Posts](/posts/index.html)\n${posts[*]};" index.md >index.md.tmp
+		md_to_html_page index.md.tmp
+		rm index.md.tmp
+	fi
 }
 
-while getopts "bp:" opt; do
+while getopts "bgn:p:" opt; do
 	case "${opt}" in
 	b)
 		BOOTSTRAP=1
+		;;
+	g)
+		GENERATE=1
+		;;
+	n)
+		NEW=${OPTARG}
 		;;
 	p)
 		TARGET=${OPTARG}
@@ -98,15 +128,22 @@ while getopts "bp:" opt; do
 	esac
 done
 
+if [ -z "$TARGET" ]; then
+	TARGET=.
+fi
+
 if [ -n "$BOOTSTRAP" ]; then
 	bootstrap
 	exit 0
 fi
 
-if [ -n "$TARGET" ]; then
-	pushd "$TARGET" || err_msg "Specified target path not found. Create it with -p [my_blog] -b."
+if [ -n "$NEW" ]; then
+	echo "# ${NEW^}" >"$TARGET/posts/$NEW.md" ||
+		err_msg "Couldn't write new post. Maybe $TARGET/posts doesn't exist?"
+fi
+
+if [ -n "$GENERATE" ]; then
+	pushd "$TARGET"
 	generate
 	popd
-else
-	generate
 fi
