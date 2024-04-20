@@ -78,7 +78,7 @@ generate_posts() {
 		ALL_POSTS+=("$link")
 		md_to_html_page "$md" && regen_index=1
 	done
-	if [[ $regen_index -eq 1 ]]; then
+	if [[ ! -f index.html || $regen_index -eq 1 ]]; then
 		echo "Regenerating posts/index.html..."
 		printf "%s" "${ALL_POSTS[@]}" >index.md
 		md_to_html_page index.md
@@ -99,10 +99,11 @@ generate() {
 	FOOTER=$(realpath "./footer.html")
 	CSS="/static/style.css"
 
-	if ! generate_posts; then
+	generate_posts
+	if [[ "$?" -eq 1 || index.md -nt index.html ]]; then
 		echo "Regenerating index.html..."
 		# Add posts section to root index.html
-		sed "s;%POSTS%;### [Posts](/posts/index.html)\n${POSTS[*]};" index.md >index.md.tmp
+		sed "s;%POSTS%;${POSTS[*]};" index.md >index.md.tmp
 		md_to_html_page index.md.tmp
 		rm index.md.tmp
 	fi
