@@ -21,6 +21,7 @@ bootstrap() {
 	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
 	printf "This is my blog header\n\n" >header.md
 	printf "This is my blog footer" >footer.md
+	printf "%s\n" "SITE_URL=" >config.env
 	echo "Downloading Simple CSS"
 	mkdir static/
 	wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
@@ -76,7 +77,6 @@ generate_posts() {
 		md_to_html_page "$md" && regen_index=1
 	done
 	if [[ ! -f index.html || $regen_index -eq 1 ]]; then
-		echo "Regenerating posts/index.html..."
 		# sort posts by timestamp and format timestamp
 		readarray -t ALL_POSTS < <(
 			while read -r ts title; do
@@ -94,6 +94,8 @@ generate_posts() {
 
 generate() {
 	pushd "$TARGET"
+	# shellcheck disable=SC1091
+	source config.env
 	[ ! -d posts ] && err_msg "Posts directory not found."
 
 	# Prepare header/footer and CSS
@@ -103,16 +105,68 @@ generate() {
 	FOOTER=$(realpath "./footer.html")
 	CSS="/static/style.css"
 
+	local gen_posts gen_about
+
 	generate_posts
-	if [[ "$?" -eq 1 || index.md -nt index.html ]]; then
-		echo "Regenerating index.html..."
+	gen_posts=$?
+	if [[ $gen_posts -eq 1 || index.md -nt index.html ]]; then
 		# Add posts section to root index.html
 		sed "s;%POSTS%;${ALL_POSTS[*]:0:6};" index.md >index.md.tmp
 		md_to_html_page index.md.tmp
 		rm index.md.tmp
 	fi
 
-	md_to_html_page about/index.md
+	md_to_html_page about/index.md && gen_about=1
+
+	if [[ ! -f rss.xml || $gen_posts -eq 1 || $gen_about -eq 1 ]]; then
+		echo "Generating rss.xml..."
+		generate_rss >rss.xml
+	fi
+}
+
+post_to_rss_item() {
+	local filename title link guid pub_date
+	filename=${1%.md*}
+	title=$(sed -rn 's/# (.*)/\1/p' "$1")
+	link="$SITE_URL/$filename.html"
+	guid="$link"
+	pub_date=$(date -R -r "$1")
+
+	printf '<item>
+<title>%s</title>
+<guid>%s</guid>
+<link>%s</link>
+<pubDate>%s</pubDate>
+<description><![CDATA[%s
+]]></description>
+</item>' "$title" "$guid" "$link" "$pub_date" "$(<"$1")"
+}
+
+generate_rss() {
+	local title description
+	title=$(sed -rn 's/# (.*)/\1/p' header.md)
+	description=$(sed -rn 's/# (.*)/\1/p' about/index.md)
+
+	printf '<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/css" href="rss.css" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+
+<channel>
+<title>%s</title>
+<description>%s</description>
+<language>en-us</language>
+<link>%s/rss.xml</link>
+<atom:link href="%s/rss.xml" rel="self" type="application/rss+xml" />
+
+%s
+
+</channel>
+</rss>' \
+		"$title" "$description" "$SITE_URL" "$SITE_URL" "$(
+			for post in posts/*.md; do
+				post_to_rss_item "$post"
+			done
+		)"
 }
 
 usage() {
