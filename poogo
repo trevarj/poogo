@@ -19,7 +19,7 @@ bootstrap() {
 	mkdir posts/ && mkdir about/
 	printf "# About me\n\nThis is a nice thing about me." >about/index.md
 	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
-	printf "This is my blog header\n\n" >header.md
+	printf "# My Blog\n\n[Home](/index.html)\n[Posts](/posts/index.html)\n[About](/about/index.html)" >header.md
 	printf "This is my blog footer" >footer.md
 	printf "%s\n" "SITE_URL=" >config.env
 	echo "Downloading Simple CSS"
