@@ -64,25 +64,29 @@ md_to_html_page() {
 
 generate_posts() {
 	pushd posts/
-	POSTS=()            # set of posts to show on /index.html
 	ALL_POSTS=()        # set of posts to show on /posts/index.html
 	local regen_index=0 # whether or not we should regen /index.html and /post/index.html
 	for md in *.md; do
 		local title timestamp filename link
 		filename=${md%.md*}
 		title=$(sed -rn 's/# (.*)/\1/p' "$md")
-		timestamp=$(date -r "$md" "+%e %b %Y")
-		# TODO: Add a little  if it was edited (html file already existed)
-		link="**$timestamp**  [$title](/posts/$filename.html)<br>"
-		[ "${#POSTS[@]}" -lt 6 ] && POSTS+=("$link")
-		ALL_POSTS+=("$link")
+		timestamp=$(date -r "$md" "+%s")
+		link="[$title](/posts/$filename.html)<br>"
+		ALL_POSTS+=("$timestamp $link")
 		md_to_html_page "$md" && regen_index=1
 	done
 	if [[ ! -f index.html || $regen_index -eq 1 ]]; then
 		echo "Regenerating posts/index.html..."
-		printf "%s" "${ALL_POSTS[@]}" >index.md
+		# sort posts by timestamp and format timestamp
+		readarray -t ALL_POSTS < <(
+			while read -r ts title; do
+				printf "**%s** %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
+					tee -a index.md
+			done < <(printf "%s\n" "${ALL_POSTS[@]}" | sort -nr -k1)
+		)
 		md_to_html_page index.md
 		rm index.md
+		regen_index=1
 	fi
 	popd
 	return $regen_index
@@ -103,7 +107,7 @@ generate() {
 	if [[ "$?" -eq 1 || index.md -nt index.html ]]; then
 		echo "Regenerating index.html..."
 		# Add posts section to root index.html
-		sed "s;%POSTS%;${POSTS[*]};" index.md >index.md.tmp
+		sed "s;%POSTS%;${ALL_POSTS[*]:0:6};" index.md >index.md.tmp
 		md_to_html_page index.md.tmp
 		rm index.md.tmp
 	fi
