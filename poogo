@@ -70,7 +70,7 @@ generate_posts() {
 	for md in *.md; do
 		local title timestamp filename link
 		filename=${md%.md*}
-		title=$(sed -rn 's/# (.*)/\1/p' "$md")
+		title=$(sed -rn 's/# (.*)/\1/p;q' "$md")
 		timestamp=$(date -r "$md" "+%s")
 		link="[$title](/posts/$filename.html)<br>"
 		ALL_POSTS+=("$timestamp $link")
@@ -144,8 +144,8 @@ post_to_rss_item() {
 
 generate_rss() {
 	local title description
-	title=$(sed -rn 's/# (.*)/\1/p' header.md)
-	description=$(sed -rn 's/# (.*)/\1/p' about/index.md)
+	title=$(sed -rn 's/# (.*)/\1/p;q' header.md)
+	description=$(sed -rn 's/# (.*)/\1/p;q' about/index.md)
 
 	printf '<?xml version="1.0" encoding="utf-8"?>
 <?xml-stylesheet type="text/css" href="rss.css" ?>
