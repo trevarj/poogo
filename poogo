@@ -21,7 +21,8 @@ bootstrap() {
 	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
 	printf "# My Blog\n\n[Home](/index.html)\n[Posts](/posts/index.html)\n[About](/about/index.html)" >header.md
 	printf "This is my blog footer" >footer.md
-	printf "%s\n" "SITE_URL=" >config.env
+	printf "%s\n" "SITE_URL=\nGH_TOKEN" >config.env
+	printf "%s\n" "config.env" >.gitignore
 	echo "Downloading Simple CSS"
 	mkdir static/
 	wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
@@ -31,26 +32,35 @@ bootstrap() {
 # $1 - markdown file
 # $2 - force generate if 1
 md_to_html() {
+	local auth_header
 	local filename=${1%.md*}
 	[[ ! -f $1 || $1 -ot "$filename.html" && $2 -ne 1 ]] && return 1
-	echo "Converting $(realpath "$filename.md") to HTML..."
+	printf "Converting %s to HTML..." "$(realpath "$filename.md")"
+	[ -n "$GH_TOKEN" ] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
 	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
-		curl -s --data @- https://api.github.com/markdown >"$filename.html" ||
+		curl -s \
+			"${auth_header[@]}" \
+			--data @- https://api.github.com/markdown >"$filename.html" ||
 		err_msg "Couldn't generate HTML using GH API."
 }
 
 # Convert md file to full html page
 md_to_html_page() {
-	local filename=${1%.md*}
-	local force=0
+	local filename force title
+	filename=${1%.md*}
+	force=0
+	title=$(extract_title "$1")
 	[[ "$filename.html" -ot "$HEADER" ||
 		"$filename.html" -ot "$FOOTER" ]] && local force=1
 
 	md_to_html "$1" $force || return 1
 
-	echo "...and creating HTML page $(realpath "$filename.html")..."
+	printf "...and creating HTML page...\n"
 	printf "<!DOCTYPE html>
-          <link rel=\"stylesheet\" href=\"%s\">
+          <head>
+            <link rel=\"stylesheet\" href=\"%s\">
+            <title>%s</title>
+          </head>
           <html>
           <body>
           %s
@@ -58,13 +68,19 @@ md_to_html_page() {
           %s
           </html>" \
 		"$CSS" \
+		"$title" \
 		"<header>$(<"${HEADER:-/dev/null}")</header>" \
 		"$(<"$filename.html")" \
 		"<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
 }
 
+extract_title() {
+	s='/# .*/{s/# (.*)/\1/p;Q};q1' # return 1 on a non-match
+	sed -rn "$s" "$1" || sed -rn "$s" "$HEADER_MD"
+}
+
 extract_ts() {
-	sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1" || date -d "@0" "+%s"
+	sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1"
 }
 
 generate_posts() {
@@ -74,7 +90,7 @@ generate_posts() {
 	for md in *.md; do
 		local title timestamp filename link
 		filename=${md%.md*}
-		title=$(sed -rn 's/# (.*)/\1/p;q' "$md")
+		title=$(extract_title "$md")
 		timestamp=$(extract_ts "$md")
 		link="[$title](/posts/$filename.html)<br>"
 		ALL_POSTS+=("$timestamp $link")
@@ -105,6 +121,7 @@ generate() {
 	# Prepare header/footer and CSS
 	md_to_html header.md
 	md_to_html footer.md
+	HEADER_MD=$(realpath "./header.md")
 	HEADER=$(realpath "./header.html")
 	FOOTER=$(realpath "./footer.html")
 	CSS="/static/style.css"
@@ -131,7 +148,7 @@ generate() {
 post_to_rss_item() {
 	local filename title link guid pub_date
 	filename=${1%.md*}
-	title=$(sed -rn 's/# (.*)/\1/p' "$1")
+	title=$(extract_title "$1")
 	link="$SITE_URL/$filename.html"
 	guid="$link"
 	pub_date=$(extract_ts "$1" | date -R)
@@ -202,8 +219,7 @@ while getopts "bghn:p:" opt; do
 done
 
 [ -n "$BOOTSTRAP" ] &&
-	bootstrap &&
-	exit 0
+	bootstrap && exit 0
 
 [ -n "$NEW" ] &&
 	(printf "# %s\n<!-- %%TIMESTAMP=%s%% -->" "${NEW^}" "$(date "+%s")" >"posts/${NEW// /_}.md" ||
