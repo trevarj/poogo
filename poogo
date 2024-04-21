@@ -154,7 +154,7 @@ post_to_rss_item() {
 	title=$(extract_title "$1")
 	link="$SITE_URL/$filename.html"
 	guid="$link"
-	pub_date=$(extract_ts "$1" | date -R)
+	pub_date=$(date -R -d "@$(extract_ts "$1")")
 
 	printf '<item>
 <title>%s</title>
