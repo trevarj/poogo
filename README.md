@@ -34,3 +34,15 @@ cd test && python -m http.server 8080
 ```
 
 Modify Markdown files, then regenerate...
+
+### Timestamp Conversion
+
+#### From Hugo
+```sh
+sed -rn 's/^date: (.*)/\1/p' *.md | xargs -i date -d {} +%s
+```
+
+#### From Org
+```sh
+sed -rn 's/#\+date: <(.*)>/\1/p' *.org | xargs -i date -d {} +%s
+```

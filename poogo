@@ -63,6 +63,10 @@ md_to_html_page() {
 		"<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
 }
 
+extract_ts() {
+	sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1" || date -d "@0" "+%s"
+}
+
 generate_posts() {
 	pushd posts/
 	ALL_POSTS=()        # set of posts to show on /posts/index.html
@@ -71,16 +75,17 @@ generate_posts() {
 		local title timestamp filename link
 		filename=${md%.md*}
 		title=$(sed -rn 's/# (.*)/\1/p;q' "$md")
-		timestamp=$(date -r "$md" "+%s")
+		timestamp=$(extract_ts "$md")
 		link="[$title](/posts/$filename.html)<br>"
 		ALL_POSTS+=("$timestamp $link")
 		md_to_html_page "$md" && regen_index=1
 	done
-	if [[ ! -f index.html || $regen_index -eq 1 ]]; then
+	# HACK: need to run if /index.html will be generated
+	if [[ ! -f index.html || ! -f ../index.html || $regen_index -eq 1 ]]; then
 		# sort posts by timestamp and format timestamp
 		readarray -t ALL_POSTS < <(
 			while read -r ts title; do
-				printf "**%s** %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
+				printf "<tt>%s  </tt> %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
 					tee -a index.md
 			done < <(printf "%s\n" "${ALL_POSTS[@]}" | sort -nr -k1)
 		)
@@ -93,7 +98,6 @@ generate_posts() {
 }
 
 generate() {
-	pushd "$TARGET"
 	# shellcheck disable=SC1091
 	source config.env
 	[ ! -d posts ] && err_msg "Posts directory not found."
@@ -130,7 +134,7 @@ post_to_rss_item() {
 	title=$(sed -rn 's/# (.*)/\1/p' "$1")
 	link="$SITE_URL/$filename.html"
 	guid="$link"
-	pub_date=$(date -R -r "$1")
+	pub_date=$(extract_ts "$1" | date -R)
 
 	printf '<item>
 <title>%s</title>
@@ -189,6 +193,7 @@ while getopts "bghn:p:" opt; do
 		;;
 	p)
 		TARGET=${OPTARG:=.}
+		pushd "$TARGET"
 		;;
 	h | *)
 		usage && exit 1
@@ -201,8 +206,8 @@ done
 	exit 0
 
 [ -n "$NEW" ] &&
-	(echo "# ${NEW^}" >"$TARGET/posts/$NEW.md" ||
-		err_msg "Couldn't write new post. Maybe $TARGET/posts doesn't exist?")
+	(printf "# %s\n<!-- %%TIMESTAMP=%s%% -->" "${NEW^}" "$(date "+%s")" >"posts/${NEW// /_}.md" ||
+		err_msg "Couldn't write new post. Maybe $TARGET/posts/ doesn't exist?")
 
 [ -n "$GENERATE" ] &&
 	generate
