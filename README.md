@@ -46,3 +46,6 @@ sed -rn 's/^date: (.*)/\1/p' *.md | xargs -i date -d {} +%s
 ```sh
 sed -rn 's/#\+date: <(.*)>/\1/p' *.org | xargs -i date -d {} +%s
 ```
+
+### Caveats
+- Github markdown API mangles up unicode chars
