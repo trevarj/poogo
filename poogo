@@ -97,7 +97,10 @@ generate_posts() {
 		md_to_html_page "$md" && regen_index=1
 	done
 	# HACK: need to run if /index.html will be generated
-	if [[ ! -f index.html || ! -f ../index.html || $regen_index -eq 1 ]]; then
+	if [[ ! -f index.html ||
+		! -f ../index.html ||
+		../index.md -nt ../index.html ||
+		$regen_index -eq 1 ]]; then
 		# sort posts by timestamp and format timestamp
 		readarray -t ALL_POSTS < <(
 			while read -r ts title; do
