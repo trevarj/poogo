@@ -21,7 +21,8 @@ bootstrap() {
 	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
 	printf "# My Blog\n\n[Home](/index.html)\n[Posts](/posts/index.html)\n[About](/about/index.html)" >header.md
 	printf "This is my blog footer" >footer.md
-	printf "%s\n" "SITE_URL=\nGH_TOKEN" >config.env
+	mkdir -p ~/.config/poogoo
+	printf "%s\n" "SITE_URL=\nGH_TOKEN" >~/.config/poogo/config.env
 	printf "%s\n" "config.env" >.gitignore
 	echo "Downloading Simple CSS"
 	mkdir static/
@@ -58,6 +59,7 @@ md_to_html_page() {
 	printf "...and creating HTML page...\n"
 	printf "<!DOCTYPE html>
           <head>
+            <meta charset=\"UTF-8\">
             <link rel=\"stylesheet\" href=\"%s\">
             <title>%s</title>
           </head>
@@ -117,8 +119,8 @@ generate_posts() {
 }
 
 generate() {
-	# shellcheck disable=SC1091
-	source config.env
+	# shellcheck disable=SC1091,SC1090
+	source ~/.config/poogo/config.env
 	[ ! -d posts ] && err_msg "Posts directory not found."
 
 	# Prepare header/footer and CSS
