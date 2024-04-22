@@ -12,7 +12,7 @@ err_msg() {
 }
 
 bootstrap() {
-	[ -d "$TARGET" ] && err_msg "Target bootstrap directory ($TARGET) already exists"
+	[[ -d "$TARGET" ]] && err_msg "Target bootstrap directory ($TARGET) already exists"
 	echo "Bootstrapping into $TARGET"
 	mkdir -p "$TARGET"
 	pushd "$TARGET"
@@ -37,7 +37,7 @@ md_to_html() {
 	local filename=${1%.md*}
 	[[ ! -f $1 || $1 -ot "$filename.html" && $2 -ne 1 ]] && return 1
 	printf "Converting %s to HTML..." "$(realpath "$filename.md")"
-	[ -n "$GH_TOKEN" ] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
+	[[ -n "$GH_TOKEN" ]] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
 	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
 		curl -s \
 			"${auth_header[@]}" \
@@ -121,7 +121,7 @@ generate_posts() {
 generate() {
 	# shellcheck disable=SC1091,SC1090
 	source ~/.config/poogo/config.env
-	[ ! -d posts ] && err_msg "Posts directory not found."
+	[[ ! -d posts ]] && err_msg "Posts directory not found."
 
 	# Prepare header/footer and CSS
 	md_to_html header.md
@@ -223,12 +223,12 @@ while getopts "bghn:p:" opt; do
 	esac
 done
 
-[ -n "$BOOTSTRAP" ] &&
+[[ -n "$BOOTSTRAP" ]] &&
 	bootstrap && exit 0
 
-[ -n "$NEW" ] &&
+[[ -n "$NEW" ]] &&
 	(printf "# %s\n<!-- %%TIMESTAMP=%s%% -->" "${NEW^}" "$(date "+%s")" >"posts/${NEW// /_}.md" ||
 		err_msg "Couldn't write new post. Maybe $TARGET/posts/ doesn't exist?")
 
-[ -n "$GENERATE" ] &&
+[[ -n "$GENERATE" ]] &&
 	generate
