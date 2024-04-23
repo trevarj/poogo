@@ -171,7 +171,7 @@ post_to_rss_item() {
 generate_rss() {
 	local title description
 	title=$(sed -rn 's/# (.*)/\1/p;q' header.md)
-	description=$(sed -rn 's/# (.*)/\1/p;q' about/index.md)
+	description=$(head -n 1 index.md)
 
 	printf '<?xml version="1.0" encoding="utf-8"?>
 <?xml-stylesheet type="text/css" href="rss.css" ?>
