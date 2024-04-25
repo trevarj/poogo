@@ -63,11 +63,11 @@ md_to_html_page() {
             <link rel=\"stylesheet\" href=\"%s\">
             <title>%s</title>
           </head>
-          <html>
           <body>
           %s
             %s
           %s
+          </body>
           </html>" \
 		"$CSS" \
 		"$title" \
@@ -153,6 +153,7 @@ generate() {
 post_to_rss_item() {
 	local filename title link guid pub_date
 	filename=${1%.md*}
+	html=${1/.md*/.html}
 	title=$(extract_title "$1")
 	link="$SITE_URL/$filename.html"
 	guid="$link"
@@ -165,7 +166,8 @@ post_to_rss_item() {
 <pubDate>%s</pubDate>
 <description><![CDATA[%s
 ]]></description>
-</item>' "$title" "$guid" "$link" "$pub_date" "$(<"$1")"
+</item>' "$title" "$guid" "$link" "$pub_date" \
+		"$(xmllint --html --xpath "//body/*[not(self::header or self::footer)]" "$html" 2>/dev/null)"
 }
 
 generate_rss() {
