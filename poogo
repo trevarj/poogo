@@ -8,56 +8,56 @@ pushd() { command pushd "$@" >/dev/null || exit 1; }
 popd() { command popd >/dev/null || exit 1; }
 
 err_msg() {
-	echo "$1" && exit 1
+  echo "$1" && exit 1
 }
 
 bootstrap() {
-	[[ -d "$TARGET" ]] && err_msg "Target bootstrap directory ($TARGET) already exists"
-	echo "Bootstrapping into $TARGET"
-	mkdir -p "$TARGET"
-	pushd "$TARGET"
-	mkdir posts/ && mkdir about/
-	printf "# About me\n\nThis is a nice thing about me." >about/index.md
-	printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
-	printf "# My Blog\n\n[Home](/index.html)\n[Posts](/posts/index.html)\n[About](/about/index.html)" >header.md
-	printf "This is my blog footer" >footer.md
-	mkdir -p ~/.config/poogoo
-	printf "%s\n" "SITE_URL=\nGH_TOKEN" >~/.config/poogo/config.env
-	printf "%s\n" "config.env" >.gitignore
-	echo "Downloading Simple CSS"
-	mkdir static/
-	wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
+  [[ -d "$TARGET" ]] && err_msg "Target bootstrap directory ($TARGET) already exists"
+  echo "Bootstrapping into $TARGET"
+  mkdir -p "$TARGET"
+  pushd "$TARGET"
+  mkdir posts/ && mkdir about/
+  printf "# About me\n\nThis is a nice thing about me." >about/index.md
+  printf "# My Blog Title\n\nThis is my blog.\n### Posts\n\n%%POSTS%%" >index.md
+  printf "# My Blog\n\n[Home](/index.html)\n[Posts](/posts/index.html)\n[About](/about/index.html)" >header.md
+  printf "This is my blog footer" >footer.md
+  mkdir -p ~/.config/poogo
+  printf "%s\n" "SITE_URL=\nGH_TOKEN" >~/.config/poogo/config.env
+  printf "%s\n" "config.env" >.gitignore
+  echo "Downloading Simple CSS"
+  mkdir static/
+  wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
 }
 
 # Convert md file to html without extra html tags
 # $1 - markdown file
 # $2 - force generate if 1
 md_to_html() {
-	local auth_header
-	local filename=${1%.md*}
-	[[ ! -f $1 || $1 -ot "$filename.html" && $2 -ne 1 ]] && return 1
-	printf "Converting %s to HTML..." "$(realpath "$filename.md")"
-	[[ -n "$GH_TOKEN" ]] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
-	jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
-		curl -s \
-			"${auth_header[@]}" \
-			--data @- https://api.github.com/markdown >"$filename.html" ||
-		err_msg "Couldn't generate HTML using GH API."
+  local auth_header
+  local filename=${1%.md*}
+  [[ ! -f $1 || $1 -ot "$filename.html" && $2 -ne 1 ]] && return 1
+  printf "Converting %s to HTML..." "$(realpath "$filename.md")"
+  [[ -n "$GH_TOKEN" ]] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
+  jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
+    curl -s \
+      "${auth_header[@]}" \
+      --data @- https://api.github.com/markdown >"$filename.html" ||
+    err_msg "Couldn't generate HTML using GH API."
 }
 
 # Convert md file to full html page
 md_to_html_page() {
-	local filename force title
-	filename=${1%.md*}
-	force=0
-	title=$(extract_title "$1")
-	[[ "$filename.html" -ot "$HEADER" ||
-		"$filename.html" -ot "$FOOTER" ]] && local force=1
+  local filename force title
+  filename=${1%.md*}
+  force=0
+  title=$(extract_title "$1")
+  [[ "$filename.html" -ot "$HEADER" ||
+    "$filename.html" -ot "$FOOTER" ]] && local force=1
 
-	md_to_html "$1" $force || return 1
+  md_to_html "$1" $force || return 1
 
-	printf "...and creating HTML page...\n"
-	printf "<!DOCTYPE html>
+  printf "...and creating HTML page...\n"
+  printf "<!DOCTYPE html>
           <head>
             <meta charset=\"UTF-8\">
             <link rel=\"stylesheet\" href=\"%s\">
@@ -69,97 +69,97 @@ md_to_html_page() {
           %s
           </body>
           </html>" \
-		"$CSS" \
-		"$title" \
-		"<header>$(<"${HEADER:-/dev/null}")</header>" \
-		"$(<"$filename.html")" \
-		"<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
+    "$CSS" \
+    "$title" \
+    "<header>$(<"${HEADER:-/dev/null}")</header>" \
+    "$(<"$filename.html")" \
+    "<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
 }
 
 extract_title() {
-	s='/# .*/{s/# (.*)/\1/p;Q};q1' # return 1 on a non-match
-	sed -rn "$s" "$1" || sed -rn "$s" "$HEADER_MD"
+  s='/# .*/{s/# (.*)/\1/p;Q};q1' # return 1 on a non-match
+  sed -rn "$s" "$1" || sed -rn "$s" "$HEADER_MD"
 }
 
 extract_ts() {
-	sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1"
+  sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1"
 }
 
 generate_posts() {
-	pushd posts/
-	ALL_POSTS=()        # set of posts to show on /posts/index.html
-	local regen_index=0 # whether or not we should regen /index.html and /post/index.html
-	for md in *.md; do
-		local title timestamp filename link
-		filename=${md%.md*}
-		title=$(extract_title "$md")
-		timestamp=$(extract_ts "$md")
-		link="[$title](/posts/$filename.html)<br>"
-		ALL_POSTS+=("$timestamp $link")
-		md_to_html_page "$md" && regen_index=1
-	done
-	# HACK: need to run if /index.html will be generated
-	if [[ ! -f index.html ||
-		! -f ../index.html ||
-		../index.md -nt ../index.html ||
-		$regen_index -eq 1 ]]; then
-		# sort posts by timestamp and format timestamp
-		readarray -t ALL_POSTS < <(
-			while read -r ts title; do
-				printf "<tt>%s  </tt> %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
-					tee -a index.md
-			done < <(printf "%s\n" "${ALL_POSTS[@]}" | sort -nr -k1)
-		)
-		md_to_html_page index.md
-		rm index.md
-		regen_index=1
-	fi
-	popd
-	return $regen_index
+  pushd posts/
+  ALL_POSTS=()        # set of posts to show on /posts/index.html
+  local regen_index=0 # whether or not we should regen /index.html and /post/index.html
+  for md in *.md; do
+    local title timestamp filename link
+    filename=${md%.md*}
+    title=$(extract_title "$md")
+    timestamp=$(extract_ts "$md")
+    link="[$title](/posts/$filename.html)<br>"
+    ALL_POSTS+=("$timestamp $link")
+    md_to_html_page "$md" && regen_index=1
+  done
+  # HACK: need to run if /index.html will be generated
+  if [[ ! -f index.html ||
+    ! -f ../index.html ||
+    ../index.md -nt ../index.html ||
+    $regen_index -eq 1 ]]; then
+    # sort posts by timestamp and format timestamp
+    readarray -t ALL_POSTS < <(
+      while read -r ts title; do
+        printf "<tt>%s  </tt> %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
+          tee -a index.md
+      done < <(printf "%s\n" "${ALL_POSTS[@]}" | sort -nr -k1)
+    )
+    md_to_html_page index.md
+    rm index.md
+    regen_index=1
+  fi
+  popd
+  return $regen_index
 }
 
 generate() {
-	# shellcheck disable=SC1091,SC1090
-	source ~/.config/poogo/config.env
-	[[ ! -d posts ]] && err_msg "Posts directory not found."
+  # shellcheck disable=SC1091,SC1090
+  source ~/.config/poogo/config.env
+  [[ ! -d posts ]] && err_msg "Posts directory not found."
 
-	# Prepare header/footer and CSS
-	md_to_html header.md
-	md_to_html footer.md
-	HEADER_MD=$(realpath "./header.md")
-	HEADER=$(realpath "./header.html")
-	FOOTER=$(realpath "./footer.html")
-	CSS="/static/style.css"
+  # Prepare header/footer and CSS
+  md_to_html header.md
+  md_to_html footer.md
+  HEADER_MD=$(realpath "./header.md")
+  HEADER=$(realpath "./header.html")
+  FOOTER=$(realpath "./footer.html")
+  CSS="/static/style.css"
 
-	local gen_posts gen_about
+  local gen_posts gen_about
 
-	generate_posts
-	gen_posts=$?
-	if [[ $gen_posts -eq 1 || index.md -nt index.html ]]; then
-		# Add posts section to root index.html
-		sed "s;%POSTS%;${ALL_POSTS[*]:0:6};" index.md >index.md.tmp
-		md_to_html_page index.md.tmp
-		rm index.md.tmp
-	fi
+  generate_posts
+  gen_posts=$?
+  if [[ $gen_posts -eq 1 || index.md -nt index.html ]]; then
+    # Add posts section to root index.html
+    sed "s;%POSTS%;${ALL_POSTS[*]:0:6};" index.md >index.md.tmp
+    md_to_html_page index.md.tmp
+    rm index.md.tmp
+  fi
 
-	md_to_html_page about/index.md && gen_about=1
+  md_to_html_page about/index.md && gen_about=1
 
-	if [[ ! -f rss.xml || $gen_posts -eq 1 || $gen_about -eq 1 ]]; then
-		echo "Generating rss.xml..."
-		generate_rss >rss.xml
-	fi
+  if [[ ! -f rss.xml || $gen_posts -eq 1 || $gen_about -eq 1 ]]; then
+    echo "Generating rss.xml..."
+    generate_rss >rss.xml
+  fi
 }
 
 post_to_rss_item() {
-	local filename title link guid pub_date
-	filename=${1%.md*}
-	html=${1/.md*/.html}
-	title=$(extract_title "$1")
-	link="$SITE_URL/$filename.html"
-	guid="$link"
-	pub_date=$(date -R -d "@$(extract_ts "$1")")
+  local filename title link guid pub_date
+  filename=${1%.md*}
+  html=${1/.md*/.html}
+  title=$(extract_title "$1")
+  link="$SITE_URL/$filename.html"
+  guid="$link"
+  pub_date=$(date -R -d "@$(extract_ts "$1")")
 
-	printf '<item>
+  printf '<item>
 <title>%s</title>
 <guid>%s</guid>
 <link>%s</link>
@@ -167,15 +167,15 @@ post_to_rss_item() {
 <description><![CDATA[%s
 ]]></description>
 </item>' "$title" "$guid" "$link" "$pub_date" \
-		"$(xmllint --html --xpath "//body/*[not(self::header or self::footer)]" "$html" 2>/dev/null)"
+    "$(xmllint --html --xpath "//body/*[not(self::header or self::footer)]" "$html" 2>/dev/null)"
 }
 
 generate_rss() {
-	local title description
-	title=$(sed -rn 's/# (.*)/\1/p;q' header.md)
-	description=$(head -n 1 index.md)
+  local title description
+  title=$(sed -rn 's/# (.*)/\1/p;q' header.md)
+  description=$(head -n 1 index.md)
 
-	printf '<?xml version="1.0" encoding="utf-8"?>
+  printf '<?xml version="1.0" encoding="utf-8"?>
 <?xml-stylesheet type="text/css" href="rss.css" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 
@@ -190,47 +190,47 @@ generate_rss() {
 
 </channel>
 </rss>' \
-		"$title" "$description" "$SITE_URL" "$SITE_URL" "$(
-			for post in posts/*.md; do
-				post_to_rss_item "$post"
-			done
-		)"
+    "$title" "$description" "$SITE_URL" "$SITE_URL" "$(
+      for post in posts/*.md; do
+        post_to_rss_item "$post"
+      done
+    )"
 }
 
 usage() {
-	echo "poogo - a static-site generator for blogs."
-	echo "Usage:  poogo -b [-p PATH] - bootstrap a skeleton blog"
-	echo "        poogo -g [-p PATH] - generate HTML from Markdown files"
-	echo "        poogo -n [-p PATH] - create new post"
+  echo "poogo - a static-site generator for blogs."
+  echo "Usage:  poogo -b [-p PATH] - bootstrap a skeleton blog"
+  echo "        poogo -g [-p PATH] - generate HTML from Markdown files"
+  echo "        poogo -n [-p PATH] - create new post"
 }
 
 while getopts "bghn:p:" opt; do
-	case "${opt}" in
-	b)
-		BOOTSTRAP=1
-		;;
-	g)
-		GENERATE=1
-		;;
-	n)
-		NEW=${OPTARG}
-		;;
-	p)
-		TARGET=${OPTARG:=.}
-		pushd "$TARGET"
-		;;
-	h | *)
-		usage && exit 1
-		;;
-	esac
+  case "${opt}" in
+  b)
+    BOOTSTRAP=1
+    ;;
+  g)
+    GENERATE=1
+    ;;
+  n)
+    NEW=${OPTARG}
+    ;;
+  p)
+    TARGET=${OPTARG:=.}
+    pushd "$TARGET"
+    ;;
+  h | *)
+    usage && exit 1
+    ;;
+  esac
 done
 
 [[ -n "$BOOTSTRAP" ]] &&
-	bootstrap && exit 0
+  bootstrap && exit 0
 
 [[ -n "$NEW" ]] &&
-	(printf "# %s\n<!-- %%TIMESTAMP=%s%% -->" "${NEW^}" "$(date "+%s")" >"posts/${NEW// /_}.md" ||
-		err_msg "Couldn't write new post. Maybe $TARGET/posts/ doesn't exist?")
+  (printf "# %s\n<!-- %%TIMESTAMP=%s%% -->" "${NEW^}" "$(date "+%s")" >"posts/${NEW// /_}.md" ||
+    err_msg "Couldn't write new post. Maybe $TARGET/posts/ doesn't exist?")
 
 [[ -n "$GENERATE" ]] &&
-	generate
+  generate

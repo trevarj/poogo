@@ -10,7 +10,7 @@ Markdown to HTML API.
 Bootstrap a blog skeleton:
 ```sh
 poogo -b -p <path to blog dir>
-# edit config.env file (for RSS support only)
+# edit ~/.config/poogo/config.env file
 ```
 
 Add a post:
