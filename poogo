@@ -159,6 +159,7 @@ post_to_rss_item() {
   guid="$link"
   pub_date=$(date -R -d "@$(extract_ts "$1")")
 
+  # sed replaces relative paths (starting with /) with an absolute path
   printf '<item>
 <title>%s</title>
 <guid>%s</guid>
@@ -167,7 +168,7 @@ post_to_rss_item() {
 <description><![CDATA[%s
 ]]></description>
 </item>' "$title" "$guid" "$link" "$pub_date" \
-    "$(xmllint --html --xpath "//body/*[not(self::header or self::footer)]" "$html" 2>/dev/null)"
+    "$(xmllint --html --xpath "//body/*[not(self::header or self::footer)]" "$html" 2>/dev/null | sed -E "s;(<a href=\")/([^\"]+)(\");\1$SITE_URL/\2\3;g")"
 }
 
 generate_rss() {
