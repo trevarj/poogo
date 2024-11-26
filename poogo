@@ -106,7 +106,7 @@ generate_posts() {
     # sort posts by timestamp and format timestamp
     readarray -t ALL_POSTS < <(
       while read -r ts title; do
-        printf "<tt>%s  </tt> %s\n" "$(date -d "@$ts" "+%e %b %Y")" "$title" |
+        printf "<tt>%s  </tt> %s\n" "$(date -d "@$ts" "+%d %b %Y")" "$title" |
           tee -a index.md
       done < <(printf "%s\n" "${ALL_POSTS[@]}" | sort -nr -k1)
     )
@@ -207,22 +207,22 @@ usage() {
 
 while getopts "bghn:p:" opt; do
   case "${opt}" in
-  b)
-    BOOTSTRAP=1
-    ;;
-  g)
-    GENERATE=1
-    ;;
-  n)
-    NEW=${OPTARG}
-    ;;
-  p)
-    TARGET=${OPTARG:=.}
-    pushd "$TARGET"
-    ;;
-  h | *)
-    usage && exit 1
-    ;;
+    b)
+      BOOTSTRAP=1
+      ;;
+    g)
+      GENERATE=1
+      ;;
+    n)
+      NEW=${OPTARG}
+      ;;
+    p)
+      TARGET=${OPTARG:=.}
+      pushd "$TARGET"
+      ;;
+    h | *)
+      usage && exit 1
+      ;;
   esac
 done
 
