@@ -206,6 +206,20 @@ usage() {
   echo "        poogo -n [-p PATH] - create new post"
 }
 
+check_command() {
+    if ! command -v $1 >/dev/null 2>&1
+    then
+        echo "$1 could not be found. Please install it."
+        exit 1
+    fi
+}
+
+required_commands=("curl" "sed" "xmllint" "jq" "wget")
+
+for cmd in "${required_commands[@]}"; do
+    check_command "$cmd"
+done
+
 while getopts "bghn:p:" opt; do
   case "${opt}" in
     b)
