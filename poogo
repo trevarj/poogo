@@ -139,8 +139,8 @@ generate() {
   [[ ! -d posts ]] && err_msg "Posts directory not found."
 
   # Prepare header/footer and CSS
-  md_to_html header.md
-  md_to_html footer.md
+  md_to_html header.md || true
+  md_to_html footer.md || true
   HEADER_MD=$(realpath "./header.md")
   HEADER=$(realpath "./header.html")
   FOOTER=$(realpath "./footer.html")
@@ -151,7 +151,10 @@ generate() {
 
   generate_posts
   gen_posts=$REGEN_POSTS_INDEX
-  if [[ $gen_posts -eq 1 || index.md -nt index.html ]]; then
+  if [[ $gen_posts -eq 1 ||
+    index.md -nt index.html ||
+    "$HEADER" -nt index.html ||
+    "$FOOTER" -nt index.html ]]; then
     # Add posts section to root index.html
     sed "s;%POSTS%;${ALL_POSTS[*]:0:6};" index.md >index.md.tmp
     md_to_html_page index.md.tmp
