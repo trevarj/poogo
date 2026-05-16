@@ -15,11 +15,11 @@ err_msg() {
 # Escape special XML characters in a string
 xml_escape() {
   local s="$1"
-  s="${s//&/&amp;}"
-  s="${s//</&lt;}"
-  s="${s//>/&gt;}"
-  s="${s//\"/&quot;}"
-  s="${s//\'/&apos;}"
+  s="${s//&/\&amp;}"
+  s="${s//</\&lt;}"
+  s="${s//>/\&gt;}"
+  s="${s//\"/\&quot;}"
+  s="${s//\'/\&apos;}"
   printf '%s' "$s"
 }
 
@@ -63,7 +63,7 @@ md_to_html_page() {
   local filename force title
   filename=${1%.md*}
   force=0
-  title=$(extract_title "$1")
+  title=$(xml_escape "$(extract_title "$1")")
   [[ "$filename.html" -ot "$HEADER" ||
     "$filename.html" -ot "$FOOTER" ]] && local force=1
 
@@ -80,14 +80,16 @@ md_to_html_page() {
           <body>
           %s
             %s
-          %s
+            %s
+            %s
           </body>
           </html>" \
     "$CSS" \
     "$title" \
     "<header>$(<"${HEADER:-/dev/null}")</header>" \
     "$(<"$filename.html")" \
-    "<footer>$(<"${FOOTER:-/dev/null}")</footer>" >"$filename.html"
+    "<footer>$(<"${FOOTER:-/dev/null}")</footer>" \
+    "$THEME_SWITCHER_TAG" >"$filename.html"
 }
 
 extract_title() {
@@ -145,6 +147,10 @@ generate() {
   HEADER=$(realpath "./header.html")
   FOOTER=$(realpath "./footer.html")
   CSS="/static/style.css"
+  THEME_SWITCHER_TAG=""
+  if [[ -f static/theme-switch.js ]]; then
+    THEME_SWITCHER_TAG="          <script defer src=\"/static/theme-switch.js\"></script>"
+  fi
 
   local gen_posts
   local gen_about=0
@@ -175,7 +181,7 @@ post_to_rss_item() {
   local filename title link guid pub_date
   filename=${1%.md*}
   html=${1/.md*/.html}
-  title=$(extract_title "$1")
+  title=$(xml_escape "$(extract_title "$1")")
   link="$SITE_URL/$filename.html"
   guid="$link"
   pub_date=$(date -R -d "@$(extract_ts "$1")")
@@ -227,7 +233,7 @@ usage() {
 }
 
 check_command() {
-    if ! command -v $1 >/dev/null 2>&1
+    if ! command -v "$1" >/dev/null 2>&1
     then
         echo "$1 could not be found. Please install it."
         exit 1
