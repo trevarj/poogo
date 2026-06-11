@@ -36,7 +36,7 @@ bootstrap() {
   mkdir -p ~/.config/poogo
   printf "%s\n" "SITE_URL=https://example.com" "GH_TOKEN=" >~/.config/poogo/config.env
   chmod 600 ~/.config/poogo/config.env
-  printf "%s\n" "config.env" >.gitignore
+  printf "%s\n" "config.env" "*.body.html" >.gitignore
   echo "Downloading Simple CSS"
   mkdir static/
   wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
@@ -44,30 +44,39 @@ bootstrap() {
 
 # Convert md file to html without extra html tags
 # $1 - markdown file
-# $2 - force generate if 1
+# $2 - output file (defaults to <basename>.html)
+# $3 - force generate if 1
 md_to_html() {
-  local auth_header force="${2:-0}"
-  local filename=${1%.md*}
-  [[ ! -f $1 || $1 -ot "$filename.html" && $force -ne 1 ]] && return 1
+  local auth_header filename out force
+  filename=${1%.md*}
+  out="${2:-$filename.html}"
+  force="${3:-0}"
+  [[ ! -f $1 || $1 -ot "$out" && $force -ne 1 ]] && return 1
   printf "Converting %s to HTML..." "$(realpath "$filename.md")"
   [[ -n "$GH_TOKEN" ]] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
   jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
     curl -s \
       "${auth_header[@]}" \
-      --data @- https://api.github.com/markdown >"$filename.html" ||
+      --data @- https://api.github.com/markdown >"$out" ||
     err_msg "Couldn't generate HTML using GH API."
 }
 
 # Convert md file to full html page
 md_to_html_page() {
-  local filename force title
+  local filename title body regenerated=0
   filename=${1%.md*}
-  force=0
+  body="$filename.body.html" # cached API-converted body, reused on header/footer changes
   title=$(xml_escape "$(extract_title "$1")")
-  [[ "$filename.html" -ot "$HEADER" ||
-    "$filename.html" -ot "$FOOTER" ]] && local force=1
 
-  md_to_html "$1" $force || return 1
+  # Re-convert the markdown body via the API only when the source changed.
+  md_to_html "$1" "$body" || regenerated=1
+
+  # Reassemble the page when the body, header, or footer is newer than it;
+  # a header/footer change only re-wraps the cached body (no API call).
+  [[ $regenerated -ne 0 &&
+    -f "$filename.html" &&
+    ! "$filename.html" -ot "$HEADER" &&
+    ! "$filename.html" -ot "$FOOTER" ]] && return 1
 
   printf "...and creating HTML page...\n"
   printf "<!DOCTYPE html>
@@ -87,7 +96,7 @@ md_to_html_page() {
     "$CSS" \
     "$title" \
     "<header>$(<"${HEADER:-/dev/null}")</header>" \
-    "$(<"$filename.html")" \
+    "$(<"$body")" \
     "<footer>$(<"${FOOTER:-/dev/null}")</footer>" \
     "$THEME_SWITCHER_TAG" >"$filename.html"
 }
