@@ -101,11 +101,17 @@ extract_ts() {
   sed -rn 's/<!-- %TIMESTAMP=([[:digit:]]*)% -->/\1/p' "$1"
 }
 
+# Return 0 if the markdown file is marked as a draft, 1 otherwise.
+is_draft() {
+  grep -q '<!-- %DRAFT% -->' "$1"
+}
+
 generate_posts() {
   pushd posts/
   ALL_POSTS=()            # set of posts to show on /posts/index.html
   REGEN_POSTS_INDEX=0     # whether or not we should regen /index.html and /post/index.html
   for md in *.md; do
+    is_draft "$md" && continue # skip drafts
     local title timestamp filename link
     filename=${md%.md*}
     title=$(extract_title "$md")
@@ -220,6 +226,7 @@ generate_rss() {
 </rss>' \
     "$title" "$description" "$SITE_URL" "$SITE_URL" "$(
       for post in posts/*.md; do
+        is_draft "$post" && continue # skip drafts
         post_to_rss_item "$post"
       done
     )"
