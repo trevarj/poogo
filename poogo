@@ -5,6 +5,9 @@
 set -euo pipefail
 shopt -s nullglob
 
+# Format all dates in UTC so output is deterministic across machines.
+export TZ=UTC
+
 pushd() { command pushd "$@" >/dev/null || exit 1; }
 popd() { command popd >/dev/null || exit 1; }
 
