@@ -42,23 +42,59 @@ bootstrap() {
   wget --quiet -O static/style.css "https://raw.githubusercontent.com/kevquirk/simple.css/main/simple.css"
 }
 
+# Pull "<!-- raw -->...<!-- endraw -->" blocks out of a markdown file so they
+# bypass the GitHub markdown API's HTML sanitizer (which strips class/style/etc).
+# Each block is written to "$2/raw.N" and replaced with a POOGORAWBLOCKN
+# placeholder paragraph. Prints the placeholdered markdown to stdout.
+extract_raw() {
+  awk -v dir="$2" '
+    BEGIN { n = 0; inraw = 0 }
+    /^[[:space:]]*<!--[[:space:]]*raw[[:space:]]*-->[[:space:]]*$/ {
+      inraw = 1; rawfile = dir "/raw." n
+      print "\nPOOGORAWBLOCK" n "\n"
+      next
+    }
+    /^[[:space:]]*<!--[[:space:]]*endraw[[:space:]]*-->[[:space:]]*$/ {
+      if (inraw) { close(rawfile); inraw = 0; n++; next }
+    }
+    { if (inraw) print > rawfile; else print }
+  ' "$1"
+}
+
+# Re-insert the blocks pulled by extract_raw, replacing each placeholder line
+# (the API wraps it as <p>POOGORAWBLOCKN</p>) with the original raw HTML.
+restore_raw() {
+  awk -v dir="$2" '
+    match($0, /POOGORAWBLOCK[0-9]+/) {
+      f = dir "/raw." substr($0, RSTART + 13, RLENGTH - 13)
+      while ((getline line < f) > 0) print line
+      close(f); next
+    }
+    { print }
+  ' "$1"
+}
+
 # Convert md file to html without extra html tags
 # $1 - markdown file
 # $2 - output file (defaults to <basename>.html)
 # $3 - force generate if 1
 md_to_html() {
-  local auth_header filename out force
+  local auth_header filename out force tmpdir
   filename=${1%.md*}
   out="${2:-$filename.html}"
   force="${3:-0}"
   [[ ! -f $1 || $1 -ot "$out" && $force -ne 1 ]] && return 1
   printf "Converting %s to HTML..." "$(realpath "$filename.md")"
   [[ -n "$GH_TOKEN" ]] && auth_header=(--header "Authorization: Bearer $GH_TOKEN")
-  jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' <"$1" |
+  tmpdir=$(mktemp -d)
+  extract_raw "$1" "$tmpdir" |
+    jq --slurp --raw-input '{"text": "\(.)", "mode": "markdown"}' |
     curl -s \
       "${auth_header[@]}" \
-      --data @- https://api.github.com/markdown >"$out" ||
-    err_msg "Couldn't generate HTML using GH API."
+      --data @- https://api.github.com/markdown >"$tmpdir/out.html" ||
+    { rm -rf "$tmpdir"; err_msg "Couldn't generate HTML using GH API."; }
+  restore_raw "$tmpdir/out.html" "$tmpdir" >"$out"
+  rm -rf "$tmpdir"
 }
 
 # Convert md file to full html page
@@ -256,7 +292,7 @@ check_command() {
     fi
 }
 
-required_commands=("curl" "sed" "xmllint" "jq" "wget")
+required_commands=("curl" "sed" "xmllint" "jq" "wget" "awk" "mktemp")
 
 for cmd in "${required_commands[@]}"; do
     check_command "$cmd"
